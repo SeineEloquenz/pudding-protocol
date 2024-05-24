@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-sudo iftop -nNP -f "port 9000"
+sudo iftop -nNBP -f "port 9000"
