@@ -1,5 +1,5 @@
 #!/bin/bash
-scenarios="register lookup_identity lookup_anonymous"
+scenarios="lookup_anonymous"
 numUsers="20"
 numServers="4 7 10"
 
