@@ -1,7 +1,7 @@
 #!/bin/bash
 scenarios="lookup_anonymous"
-numUsers="20"
-numServers="4 7 10"
+numUsers="2"
+numServers="7"
 
 cd "$(dirname "$0")";
 
@@ -22,7 +22,7 @@ for round in {1..2}; do
     for numServer in $numServers; do
       for scenario in $scenarios; do
         # We retry each experiment 5 times before declaring game over
-        for retry in {1..10}; do
+        for retry in {1..1}; do
           outputFilename="output/$prefix-$hostname-$scenario-u$numUser-s$numServer-r$round.log";
 
           set -o pipefail; # Makes the first failed command fail the pipe
