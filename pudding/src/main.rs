@@ -1,8 +1,6 @@
-use std::process::exit;
 use std::time::Duration;
 
 use clap::Parser;
-use tokio::signal;
 use tracing::{info, Level};
 use tracing_subscriber::filter::EnvFilter;
 
@@ -55,8 +53,8 @@ async fn main() {
         x => panic!("unknown scenario option: {}", x),
     };
     info!(
-        "Starting with u={} and s={} for scenario {:?} and will stop after {} seconds",
-        args.num_users, args.num_servers, scenario, args.runtime_seconds
+        "Starting with u={} and s={} for scenario {:?}.",
+        args.num_users, args.num_servers, scenario
     );
 
     // Create world and play \o/
@@ -64,14 +62,5 @@ async fn main() {
     let mut world = World::new(global_config);
     let runtime = Duration::from_secs(args.runtime_seconds as u64);
 
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-    let running = tokio::time::timeout(runtime, world.run());
-    tokio::select! {
-        _ = ctrl_c => {info!("Ctrl+C received"); exit(1)},
-        _ = running => {info!("Runtime exceeded: will shutdown now"); exit(0)},
-    }
+    world.run(runtime).await;
 }

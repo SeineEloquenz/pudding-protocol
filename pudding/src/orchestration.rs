@@ -1,8 +1,11 @@
 use std::collections::HashMap;
+use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use nym_sdk::mixnet;
 use nym_sdk::mixnet::Recipient;
 use p256::ecdsa::VerifyingKey;
+use tracing::info;
 
 use crate::clients::UserClient;
 use crate::crypto::{generate_keypair, random_bigint, PuddingX25519PublicKey};
@@ -100,7 +103,7 @@ impl World {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self, runtime: Duration) {
         // Create all clients and servers; this includes registration and connecting
         // to the gateways
         let mut clients = Vec::new();
@@ -188,6 +191,22 @@ impl World {
         let handle = tokio::spawn(async move { dkim.run().await });
         handles.push(handle);
 
-        futures::future::join_all(handles).await;
+        info!("Started everything, beginning timeout and measurement.");
+        let mut measurement = match Command::new("iftop")
+            .args(["-nNBP", "-t", "-s"])
+            .arg(format!("{}", runtime.as_secs()))
+            .stdin(Stdio::null())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => {
+                eprintln!("Failed to start iftop: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        let _ = measurement.wait();
     }
 }
