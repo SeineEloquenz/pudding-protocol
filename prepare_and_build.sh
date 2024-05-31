@@ -23,12 +23,6 @@ cd forked-nym-sphinx;
 git checkout pudding;
 cd ../..;
 
-# Build pudding in debug and test
-cd pudding;
-cargo build;
-cargo test;
-cd ..;
-
 # Build pudding in release mode
 cd pudding;
 cargo build --release;
