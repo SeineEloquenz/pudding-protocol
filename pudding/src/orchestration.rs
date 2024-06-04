@@ -1,13 +1,14 @@
 use std::collections::HashMap;
-use std::process::{Command, Stdio};
+use std::process::{exit, Command, Stdio};
 use std::time::Duration;
 
 use nym_sdk::mixnet;
 use nym_sdk::mixnet::Recipient;
 use p256::ecdsa::VerifyingKey;
+use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::clients::UserClient;
+use crate::clients::{MeasurementResult, UserClient};
 use crate::crypto::{generate_keypair, random_bigint, PuddingX25519PublicKey};
 use crate::dkim::DkimService;
 use crate::servers::{DiscoveryServer, RegisteredUser};
@@ -178,15 +179,20 @@ impl World {
             handles.push(handle);
         }
 
+        let (mut stop_tx, rx) = spmc::channel::<()>();
+        let (result_tx, mut result_rx) = mpsc::unbounded_channel::<MeasurementResult>();
         for mut client in clients {
             let address_book_clone = self.address_book.clone();
             let global_config_clone = self.global_config.clone();
+            let result_tx = result_tx.clone();
+            let rx = rx.clone();
             let handle =
                 tokio::spawn(
-                    async move { client.run(address_book_clone, global_config_clone).await },
+                    async move { client.run(rx, result_tx, address_book_clone, global_config_clone).await },
                 );
             handles.push(handle);
         }
+        drop(result_tx);
 
         let handle = tokio::spawn(async move { dkim.run().await });
         handles.push(handle);
@@ -208,5 +214,24 @@ impl World {
         };
 
         let _ = measurement.wait();
+        info!("Stopping threads...");
+        for _ in 0..self.address_book.user_names.len() {
+            let _ = stop_tx.send(());
+        }
+        info!("Gathering data...");
+
+
+        loop {
+            match result_rx.recv().await {
+                Some(result) => {
+                    println!("Client {} sent: {}B, received: {}B", result.name, result.sent, result.received);
+                },
+                None => {
+                    break;
+                }
+            }
+        }
+        info!("All done. exiting :)");
+        exit(0);
     }
 }

@@ -18,6 +18,8 @@ use rand::{thread_rng, Rng};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use sha2::{Digest, Sha256, Sha512};
+use spmc::Receiver;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 use x25519_dalek::PublicKey as X25519PublicKey;
@@ -39,6 +41,8 @@ type HmacSha256 = Hmac<Sha256>;
 pub(crate) struct UserClient {
     client: MixnetClient,
     pub name: String,
+    pub received: usize,
+    pub sent: usize,
 
     /// User keypair (public key from your Delta and the corresponding secret key) converted to ed25519 from x25519
     /// This conversion is necessary for key blinding
@@ -102,6 +106,12 @@ pub(crate) struct UserClient {
     assoc_nonces: BiMap<Nonce, Nonce>,
 }
 
+pub struct MeasurementResult {
+    pub name: String,
+    pub sent: usize,
+    pub received: usize,
+}
+
 /// The registering user struct holds the information about the users that are in the process of registration.
 #[derive(Clone, Eq)]
 pub struct LookupData {
@@ -161,6 +171,8 @@ impl UserClient {
         UserClient {
             client,
             name,
+            received: 0,
+            sent: 0,
             ed25519_keypair,
             x25519_private_key,
             x25519_public_key,
@@ -187,7 +199,7 @@ impl UserClient {
         return *self.client.nym_address();
     }
 
-    pub async fn run(&mut self, address_book: AddressBook, global_config: GlobalConfiguration) {
+    pub async fn run(&mut self, rx: Receiver<()>, tx: UnboundedSender<MeasurementResult>, address_book: AddressBook, global_config: GlobalConfiguration) {
         info!("{} is running", self.name);
 
         // Start a new protocol run for this client every `duration_between_actions` time period
@@ -197,6 +209,18 @@ impl UserClient {
         let mut next_action = Instant::now() + random_offset;
 
         loop {
+            match rx.try_recv() {
+                Ok(()) => {
+                    let _ = tx.send(MeasurementResult {
+                        name: self.name.clone(),
+                        sent: self.sent,
+                        received: self.received
+                    });
+                    return;
+                },
+                Err(_) => {
+                },
+            };
             // trigger a new execution if we are past our schedule time
             if Instant::now() > next_action {
                 match global_config.scenario {
@@ -235,6 +259,7 @@ impl UserClient {
         let content_size = content.len();
 
         let message: Message = serde_json::from_str(&content).expect("Invalid message");
+        self.received += content_size;
         debug!("{} received: {} ({content_size} bytes)", self.name, message);
 
         match message {
@@ -584,10 +609,12 @@ impl UserClient {
 
         for server in address_book.server_names.iter() {
             let server_address = address_book.get_address(server);
+            let msg = &serde_json::to_string(&lookup_request).unwrap();
+            self.sent += msg.len();
             self.client
                 .send_str(
                     server_address,
-                    &serde_json::to_string(&lookup_request).unwrap(),
+                    msg,
                 )
                 .await;
         }
