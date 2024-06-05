@@ -1,13 +1,10 @@
 # Pudding 🍮
 
-This repository contains the code for the Pudding private user discovery protocol (paper accepted to IEEE S&P 2024, will be linked here once available).
+This repository contains the code for the Pudding private user discovery protocol (paper accepted to IEEE S&P 2024, [check it out](https://www.computer.org/csdl/proceedings-article/sp/2024/313000a167/1Ub24I5jc6A)).
 In particular, it contains the following components:
 - A prototype implementation that runs on the [Nym anonymity network](https://nymtech.net/)
 - An evaluation harness
 - A Python notebook for analysis
-
-> [!NOTE]  
-> This repository is work-in-progress and will be updated for the artifact evaluation.
 
 > [!NOTE]  
 > This is an academic prototype and not fit for production use.
